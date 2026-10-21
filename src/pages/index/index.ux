@@ -1,1 +1,222 @@
+<template>
+  <div class="container">
+    <text class="title">ПЯТНАШКИ</text>
+    <text class="score">Ходы: {{moves}}</text>
+    
+    <!-- Игровое поле 4х4 -->
+    <div class="board">
+      <div class="row" for="{{(rowIndex, row) in grid}}">
+        <div 
+          for="{{(colIndex, val) in row}}" 
+          class="cell {{val === 0 ? 'empty' : 'tile'}}"
+          onclick="handleTileClick(rowIndex, colIndex)"
+        >
+          <text class="tile-text">{{val === 0 ? '' : val}}</text>
+        </div>
+      </div>
+    </div>
 
+    <!-- Состояние победы или кнопка сброса -->
+    <div class="status-zone">
+      <text if="{{isWon}}" class="win-text">🎉 Победа!</text>
+      <input 
+        if="{{!isWon}}" 
+        type="button" 
+        class="btn-reset" 
+        value="Новая игра" 
+        onclick="resetGame" 
+      />
+      <input 
+        if="{{isWon}}" 
+        type="button" 
+        class="btn-reset btn-win" 
+        value="Играть снова" 
+        onclick="resetGame" 
+      />
+    </div>
+  </div>
+</template>
+
+<script>
+import vibrator from '@system.vibrator'
+
+export default {
+  private: {
+    grid: [,
+ ,
+ ,
+      [13, 14, 15, 0]
+    ],
+    emptyRow: 3,
+    emptyCol: 3,
+    moves: 0,
+    isWon: false
+  },
+
+  onInit() {
+    this.resetGame();
+  },
+
+  resetGame() {
+    // Начальное состояние
+    let startGrid = [,
+ ,
+ ,
+      [13, 14, 15, 0]
+    ];
+    this.emptyRow = 3;
+    this.emptyCol = 3;
+    this.moves = 0;
+    this.isWon = false;
+
+    // Честное перемешивание случайными ходами пустой ячейки (100% решаемо)
+    for (let i = 0; i < 150; i++) {
+      let directions = [];
+      if (this.emptyRow > 0) directions.push({r: -1, c: 0});
+      if (this.emptyRow < 3) directions.push({r: 1, c: 0});
+      if (this.emptyCol > 0) directions.push({r: 0, c: -1});
+      if (this.emptyCol < 3) directions.push({r: 0, c: 1});
+
+      let move = directions[Math.floor(Math.random() * directions.length)];
+      let targetRow = this.emptyRow + move.r;
+      let targetCol = this.emptyCol + move.c;
+
+      startGrid[this.emptyRow][this.emptyCol] = startGrid[targetRow][targetCol];
+      startGrid[targetRow][targetCol] = 0;
+      this.emptyRow = targetRow;
+      this.emptyCol = targetCol;
+    }
+
+    this.grid = startGrid;
+  },
+
+  handleTileClick(row, col) {
+    if (this.isWon) return;
+
+    // Проверяем, находится ли плитка рядом с пустой ячейкой
+    const isAdjacent = (Math.abs(row - this.emptyRow) + Math.abs(col - this.emptyCol)) === 1;
+
+    if (isAdjacent) {
+      // Копируем матрицу для триггера обновления интерфейса в Vela OS
+      let newGrid = JSON.parse(JSON.stringify(this.grid));
+      
+      // Меняем местами фишку и пустоту
+      newGrid[this.emptyRow][this.emptyCol] = newGrid[row][col];
+      newGrid[row][col] = 0;
+
+      this.emptyRow = row;
+      this.emptyCol = col;
+      this.moves++;
+      this.grid = newGrid; // Переприсваиваем массив для реактивности UI
+
+      // Легкая вибрация при успешном ходе
+      try {
+        vibrator.vibrate({ mode: 'short' });
+      } catch (e) {
+        console.log("Вибрация не поддерживается в эмуляторе");
+      }
+
+      this.checkWin();
+    }
+  },
+
+  checkWin() {
+    let expected = 1;
+    for (let r = 0; r < 4; r++) {
+      for (let c = 0; c < 4; c++) {
+        if (r === 3 && c === 3) {
+          if (this.grid[r][c] !== 0) return;
+        } else {
+          if (this.grid[r][c] !== expected) return;
+          expected++;
+        }
+      }
+    }
+    
+    // Если вышли из цикла — игрок победил
+    this.isWon = true;
+    try {
+      vibrator.vibrate({ mode: 'long' }); // Длинное вибро при победе
+    } catch (e) {}
+  }
+}
+</script>
+
+<style>
+  .container {
+    flex-direction: column;
+    align-items: center;
+    background-color: #000000;
+    width: 212px;
+    padding-top: 35px;
+    padding-bottom: 35px;
+  }
+  .title {
+    font-size: 24px;
+    color: #ffffff;
+    font-weight: bold;
+    margin-bottom: 5px;
+  }
+  .score {
+    font-size: 18px;
+    color: #aaaaaa;
+    margin-bottom: 15px;
+  }
+  .board {
+    flex-direction: column;
+    background-color: #1a1a1a;
+    padding: 6px;
+    border-radius: 12px;
+    width: 192px;
+    height: 192px;
+  }
+  .row {
+    flex-direction: row;
+    width: 180px;
+    height: 45px;
+  }
+  .cell {
+    width: 41px;
+    height: 41px;
+    margin: 2px;
+    justify-content: center;
+    align-items: center;
+    border-radius: 6px;
+  }
+  .tile {
+    background-color: #007acc;
+  }
+  .empty {
+    background-color: #1a1a1a;
+  }
+  .tile-text {
+    font-size: 22px;
+    color: #ffffff;
+    font-weight: bold;
+  }
+  .status-zone {
+    margin-top: 20px;
+    width: 190px;
+    justify-content: center;
+    flex-direction: column;
+    align-items: center;
+  }
+  .win-text {
+    font-size: 22px;
+    color: #00ff66;
+    font-weight: bold;
+    margin-bottom: 10px;
+  }
+  .btn-reset {
+    width: 170px;
+    height: 40px;
+    background-color: #333333;
+    color: #ffffff;
+    font-size: 18px;
+    border-radius: 20px;
+  }
+  .btn-win {
+    background-color: #00ff66;
+    color: #000000;
+  }
+</style>
